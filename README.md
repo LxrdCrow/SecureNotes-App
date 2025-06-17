@@ -9,6 +9,7 @@ Built using Python and MySQL, the project is structured to support scalability, 
 ## Repository
 
 SecureNotes-App/
+
         /app
             _init_.py
             auth.py
