@@ -17,9 +17,15 @@ SecureNotes-App/
             utils.py
             logic.py
 
+            /gui
+                _init_.py
+                dialogs.py
+                main_window.py
+                styles.py
+
         /database
             database.py
-            schema.sql
+            schema_sqlite.sql
             init_db.py
 
     .env  
@@ -30,4 +36,4 @@ SecureNotes-App/
 
 ## Work in progress
 
-Think about structure, database configuration and main
+Switch database mysql in sqlite, add toolkit dear pygui - build structure of auth.py (working) - next task is for notes.py
