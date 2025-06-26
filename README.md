@@ -36,4 +36,4 @@ SecureNotes-App/
 
 ## Work in progress
 
-Switch database mysql in sqlite, add toolkit dear pygui - build structure of auth.py (working) - next task is for notes.py
+Structure and Building GUI -> main_window.py
