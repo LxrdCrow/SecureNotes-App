@@ -1,5 +1,3 @@
-# database/database.py
-
 import sqlite3
 import os
 import config 
@@ -62,6 +60,14 @@ def initialize_database():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             action TEXT NOT NULL,
             timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS auth (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            password_hash TEXT NOT NULL,
+            salt TEXT NOT NULL,
+            encrypted_master_key TEXT NOT NULL
         )
         """
     ]

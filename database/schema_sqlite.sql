@@ -34,6 +34,14 @@ CREATE TABLE IF NOT EXISTS audit_logs (
     timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS auth (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    password_hash TEXT NOT NULL,
+    salt TEXT NOT NULL,
+    encrypted_master_key TEXT NOT NULL
+);
+
+
 
 
 
