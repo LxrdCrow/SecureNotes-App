@@ -38,4 +38,4 @@ SecureNotes-App/
 
 ## Work in progress
 
-Structure and Building GUI -> main_window.py
+First GUI structure can be started, but is still necessary building the logic of GUI, fix all bug, add styles etc.
