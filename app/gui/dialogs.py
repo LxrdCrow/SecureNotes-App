@@ -36,7 +36,7 @@ def show_splash(on_submit):
                     no_resize=True,
                     width=width,
                     height=height,
-                    pos=[200, 100]):  # oppure pos=[0, 0] e poi center_window()
+                    pos=[200, 100]):
         
         dpg.add_spacer(height=20)
         dpg.add_text("Welcome to Secure Notes", bullet=True, wrap=350)
@@ -59,7 +59,7 @@ def show_splash(on_submit):
                 callback=lambda: dpg.stop_dearpygui())
         
 
-    # 🔥 Handler per i tasti
+    # Handler per i tasti
     with dpg.handler_registry():
         dpg.add_key_press_handler(dpg.mvKey_Return, callback=lambda: on_submit(
             dpg.get_value("splash_username"),
@@ -102,7 +102,7 @@ def show_new_note_dialog(on_note_created):
             ))
             dpg.add_button(label="Cancel", callback=lambda: dpg.delete_item(tag))
         dpg.add_spacer(height=10)
-        dpg.add_button(label="← Back to Menu", callback=lambda: (
+        dpg.add_button(label="Back to Menu", callback=lambda: (
             dpg.delete_item(tag),
             dpg.show_item("Main Window")
         ))
