@@ -38,4 +38,4 @@ SecureNotes-App/
 
 ## Work in progress
 
-Fixing bug of structure, colors, navbar, position notes etc.
+Next fixing bug: colors, add cryptography, add auto delete, need to modified settings
