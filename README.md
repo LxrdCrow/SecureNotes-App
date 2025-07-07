@@ -34,9 +34,11 @@ SecureNotes-App/
     .env  
     config.py  
     main.py  
+    secure_notes.ico
     README.md  
      
 
 ## Work in progress
 
-Next fixing bug: Le note non sono ancora protette con password
+Next step: create setup for app icon
+    
