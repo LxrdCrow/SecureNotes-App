@@ -3,120 +3,146 @@
 import dearpygui.dearpygui as dpg
 
 def center_window(tag: str, width: int, height: int, offset_x: int = 200, offset_y: int = 100):
-    """
-    Centra la finestra indicata dal tag e poi applica un offset in px.
-    offset_x: quanto spostarla verso destra dopo il centraggio
-    offset_y: quanto spostarla verso il basso dopo il centraggio
-    """
+    """Centra la finestra indicata dal tag, poi applica un offset in px."""
     if not dpg.does_item_exist(tag):
         return
-
-    # Dimensioni del viewport (area client)
-    viewport_w = dpg.get_viewport_client_width()
-    viewport_h = dpg.get_viewport_client_height()
-
-    # Calcolo posizione centrale
-    x = (viewport_w - width) // 2 + offset_x
-    y = (viewport_h - height) // 2 + offset_y
-
+    vw = dpg.get_viewport_client_width()
+    vh = dpg.get_viewport_client_height()
+    x = (vw - width) // 2 + offset_x
+    y = (vh - height) // 2 + offset_y
     dpg.set_item_pos(tag, [x, y])
 
-
 def show_splash(on_submit):
-    tag = "Splash"
-    width, height = 800, 650
-
+    tag, w, h = "Splash", 700, 600
     if dpg.does_item_exist(tag):
         dpg.delete_item(tag)
 
-    with dpg.window(label="Welcome",
-                    tag=tag,
-                    modal=True,
-                    no_title_bar=True,
-                    no_resize=True,
-                    width=width,
-                    height=height,
-                    pos=[200, 100]):
-        
+    def _submit():
+        username = dpg.get_value("splash_username") or ""
+        master_key = dpg.get_value("splash_master_key") or ""
+
+        # se master_key è vuota o solo spazi
+        if not master_key.strip():
+            show_error_dialog("⚠️ You must enter a Master Key to continue.")
+            return
+
+        on_submit(username, master_key)
+
+
+    with dpg.window(label="Welcome", tag=tag, modal=True, no_title_bar=True,
+                    no_resize=True, width=w, height=h, pos=[200, 100]):
         dpg.add_spacer(height=20)
         dpg.add_text("Welcome to Secure Notes", bullet=True, wrap=350)
         dpg.add_spacer(height=10)
         dpg.add_text("Enter your name:", color=[200, 200, 200])
-        dpg.add_input_text(tag="splash_username", width=width-100)
+        dpg.add_input_text(tag="splash_username", width=w-100)
         dpg.add_spacer(height=10)
-        dpg.add_text("Enter your master key:", color=[200, 200, 200])
-        dpg.add_input_text(tag="splash_master_key", password=True, width=width-100)
+        dpg.add_text("Enter your Master Key:", color=[200, 200, 200])
+        dpg.add_input_text(tag="splash_master_key", password=True, width=w-100)
+        dpg.add_spacer(height=10)
+        dpg.add_text("This key is used to encrypt your notes.", color=[200, 200, 200])
+        dpg.add_text("Make sure to remember it!", color=[200, 200, 200])
+        dpg.add_spacer(height=10)
+        dpg.add_text("Note: If you lose your Master Key, you will not be able to access your notes.", color=[255, 0, 0])
         dpg.add_spacer(height=20)
 
-        # Pulsanti
         with dpg.group(horizontal=True):
-            dpg.add_button(label="Submit", width=100,
-                callback=lambda: on_submit(
-                    dpg.get_value("splash_username"),
-                    dpg.get_value("splash_master_key")
-                ))
-            dpg.add_button(label="Exit", width=100,
-                callback=lambda: dpg.stop_dearpygui())
-        
+            dpg.add_button(label="Submit", width=100, callback=_submit)
+            dpg.add_button(label="Exit", width=100, callback=lambda: dpg.stop_dearpygui())
 
-    # Handler per i tasti
-    with dpg.handler_registry():
-        dpg.add_key_press_handler(dpg.mvKey_Return, callback=lambda: on_submit(
-            dpg.get_value("splash_username"),
-            dpg.get_value("splash_master_key")
-        ))
-        dpg.add_key_press_handler(dpg.mvKey_Escape, callback=lambda: dpg.stop_dearpygui())
+    # Invio tastiera
+    if not dpg.does_item_exist("splash_enter_handler"):
+        with dpg.handler_registry(tag="splash_enter_handler"):
+            dpg.add_key_press_handler(dpg.mvKey_Return, callback=lambda: _submit())
 
+    # Reset campi
     dpg.set_value("splash_username", "")
     dpg.set_value("splash_master_key", "")
-    center_window(tag, width, height, offset_x=200, offset_y=50)
+    center_window(tag, w, h, offset_x=200, offset_y=50)
     dpg.show_item(tag)
-
     return tag
 
 
-def show_new_note_dialog(on_note_created):
-    tag = "NewNote"
-    width, height = 500, 450
+
+def show_new_note_dialog(on_note_created, default_max_reads: int):
+    tag, w, h = "NewNote", 900, 900
 
     if dpg.does_item_exist(tag):
         dpg.delete_item(tag)
 
+    def _submit():
+        if not dpg.does_item_exist(tag) or not dpg.is_item_shown(tag):
+            return  # Non fare nulla se la finestra non è aperta
+        on_note_created(
+            dpg.get_value("newnote_title"),
+            dpg.get_value("newnote_content"),
+            dpg.get_value("newnote_passphrase") or None,
+            dpg.get_value("newnote_max_reads") or None
+        )
+
+    # Finestra
     with dpg.window(label="New Note",
                     tag=tag,
                     modal=True,
                     no_title_bar=True,
                     no_resize=True,
-                    width=width,
-                    height=height,
+                    width=w, height=h,
                     pos=[0, 0]):
+
         dpg.add_text("Create a New Note", bullet=True)
         dpg.add_separator()
-        dpg.add_input_text(label="Title", tag="newnote_title")
-        dpg.add_input_text(label="Content", multiline=True, height=150, tag="newnote_content")
         dpg.add_spacer(height=10)
+
+        dpg.add_input_text(label="Title", tag="newnote_title", width=w-80)
+        dpg.add_spacer(height=10)
+        dpg.add_input_text(label="Content", tag="newnote_content",
+                           multiline=True, height=320, width=w-80)
+        dpg.add_spacer(height=10)
+        dpg.add_input_text(label="Password",
+                           tag="newnote_passphrase", password=True, width=w-80)
+        dpg.add_spacer(height=10)
+        dpg.add_input_int(label="Max Reads",
+                          tag="newnote_max_reads",
+                          default_value=default_max_reads,
+                          min_value=1, max_value=100,
+                          width=160)
+        dpg.add_spacer(height=20)
+
         with dpg.group(horizontal=True):
-            dpg.add_button(label="Create", callback=lambda: on_note_created(
-                dpg.get_value("newnote_title"),
-                dpg.get_value("newnote_content")
-            ))
-            dpg.add_button(label="Cancel", callback=lambda: dpg.delete_item(tag))
+            dpg.add_button(label="Create", width=160, callback=_submit)
+            dpg.add_button(label="Cancel", width=160,
+                           callback=lambda: dpg.delete_item(tag))
+
         dpg.add_spacer(height=10)
-        dpg.add_button(label="Back to Menu", callback=lambda: (
-            dpg.delete_item(tag),
-            dpg.show_item("Main Window")
-        ))
-    center_window(tag, width, height, offset_x=100, offset_y=50)
+        dpg.add_button(label="Back to Menu", width=160,
+                       callback=lambda: (
+                           dpg.delete_item(tag),
+                           dpg.show_item("Main Window")
+                       ))
+
+        dpg.focus_item("newnote_title")
+
+    # Handler globale per Invio (solo se non esiste già)
+    if not dpg.does_item_exist("newnote_enter_handler"):
+        with dpg.handler_registry(tag="newnote_enter_handler"):
+            dpg.add_key_press_handler(dpg.mvKey_Return, callback=lambda: _submit())
+
+    # Reset valori
     dpg.set_value("newnote_title", "")
     dpg.set_value("newnote_content", "")
+    dpg.set_value("newnote_passphrase", "")
+    dpg.set_value("newnote_max_reads", default_max_reads)
+
+    center_window(tag, w, h, offset_x=100, offset_y=50)
     dpg.show_item(tag)
     return tag
 
 
-def show_settings_dialog(on_settings_saved):
-    tag = "Settings"
-    width, height = 500, 400
 
+
+
+def show_settings_dialog(on_save, current_theme: str, auto_delete: bool, max_reads: int):
+    tag, w, h = "Settings", 500, 350
     if dpg.does_item_exist(tag):
         dpg.delete_item(tag)
 
@@ -125,47 +151,65 @@ def show_settings_dialog(on_settings_saved):
                     modal=True,
                     no_title_bar=True,
                     no_resize=True,
-                    width=width,
-                    height=height,
-                    pos=[0, 0]):
+                    width=w, height=h,
+                    pos=[0,0]):
+
         dpg.add_text("Application Settings", bullet=True)
         dpg.add_separator()
-        dpg.add_combo(label="Theme", items=["Dark", "Light"], default_value="Dark", tag="settings_theme")
         dpg.add_spacer(height=10)
+
+        # Theme
+        dpg.add_combo(label="Theme", items=["Dark","Light"],
+                      default_value=current_theme, tag="settings_theme")
+        dpg.add_spacer(height=10)
+
+        # Auto‑delete
+        dpg.add_checkbox(label="Enable Auto-Delete",
+                         tag="settings_auto_delete",
+                         default_value=auto_delete)
+        dpg.add_spacer(height=10)
+
+        # Max reads global
+        dpg.add_text("Default Max Reads Before Deletion:")
+        dpg.add_input_int(label="", tag="settings_max_reads",
+                          default_value=max_reads, min_value=1, max_value=100)
+        dpg.add_spacer(height=20)
+
         with dpg.group(horizontal=True):
-            dpg.add_button(label="Save", callback=lambda: on_settings_saved(dpg.get_value("settings_theme")))
-            dpg.add_button(label="Cancel", callback=lambda: dpg.delete_item(tag))
-        dpg.add_spacer(height=10)
-        dpg.add_button(label="← Back to Menu", callback=lambda: (
-            dpg.delete_item(tag),
-            dpg.show_item("Main Window")
-        ))
-    center_window(tag, width, height, offset_x=100, offset_y=50)
-    dpg.set_value("settings_theme", "Dark")
+            dpg.add_button(label="Save", width=100,
+                callback=lambda: (
+                    on_save(
+                        dpg.get_value("settings_theme"),
+                        dpg.get_value("settings_auto_delete"),
+                        dpg.get_value("settings_max_reads"),
+                        None
+                    ),
+                    dpg.delete_item(tag)
+                ))
+            dpg.add_button(label="Cancel", width=100,
+                           callback=lambda: dpg.delete_item(tag))
+
+    center_window(tag, w, h, offset_x=100, offset_y=50)
     dpg.show_item(tag)
     return tag
 
-
-def show_error_dialog(message: str):
-    tag = "Error"
-    width, height = 500, 300
-
+def show_error_dialog(message: str = "Si è verificato un errore."):
+    tag, w, h = "ErrorDialog", 400, 150
     if dpg.does_item_exist(tag):
         dpg.delete_item(tag)
 
-    with dpg.window(label="Error",
+    with dpg.window(label="Errore",
                     tag=tag,
                     modal=True,
                     no_title_bar=True,
                     no_resize=True,
-                    width=width,
-                    height=height,
-                    pos=[0, 0]):
-        dpg.add_text(f"Error: {message}", bullet=True, wrap=350)
+                    width=w, height=h):
+        dpg.add_text("⚠️ Errore:", color=[255,0,0])
+        dpg.add_text(message, wrap=350)
         dpg.add_spacer(height=20)
-        dpg.add_button(label="OK", callback=lambda: dpg.delete_item(tag))
-    center_window(tag, width, height, offset_x=100, offset_y=50)
+        dpg.add_button(label="OK", width=100,
+                       callback=lambda: dpg.delete_item(tag))
+
+    center_window(tag, w, h, offset_x=150, offset_y=60)
     dpg.show_item(tag)
     return tag
-
-

@@ -24,6 +24,7 @@ SecureNotes-App/
                 dialogs.py
                 main_window.py
                 styles.py
+                crypto_utils.py
 
         /database
             database.py
@@ -34,8 +35,8 @@ SecureNotes-App/
     config.py  
     main.py  
     README.md  
-    requirements.txt  
+     
 
 ## Work in progress
 
-Next fixing bug: colors, add cryptography, add auto delete, need to modified settings
+Next fixing bug: Le note non sono ancora protette con password

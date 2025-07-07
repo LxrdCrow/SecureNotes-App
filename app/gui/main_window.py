@@ -11,155 +11,208 @@ from .dialogs import (
 )
 from .crypto_utils import encrypt_note, decrypt_note, generate_key_from_password
 
-MAX_READS = 5
 DATA_FILE = "notes_data.json"
+SETTINGS_FILE = "settings.json"
 
 def run_app():
+    # 1) Context e viewport
     dpg.create_context()
     dpg.create_viewport(title="Secure Notes", width=900, height=700)
     dpg.setup_dearpygui()
     init_themes()
 
+    # 2) Carica impostazioni (se esistono) o usa default
+    if os.path.exists(SETTINGS_FILE):
+        with open(SETTINGS_FILE, "r", encoding="utf-8") as f:
+            settings = json.load(f)
+    else:
+        settings = {
+            "theme": "Dark",
+            "auto_delete_enabled": True,
+            "max_reads": 5
+        }
+
+    # Applica il tema iniziale
+    if settings["theme"] == "Dark":
+        apply_dark_theme()
+    else:
+        apply_light_theme()
+
+    # 3) Stato globale
     app_state = {
         "username": None,
-        "master_key": None,
-        "notes": []  # ogni nota: {"title": str, "content_encrypted": str, "read_count": int}
+        "master_key": None,   # solo per l’accesso all’app
+        "notes": [],          # ogni nota: {title, content_encrypted, read_count, passphrase, max_reads}
+        "auto_delete_enabled": settings["auto_delete_enabled"],
+        "max_reads": settings["max_reads"]
     }
 
-    # --- STORAGE ---
+    # 4) Persistenza note
     def save_notes():
-        try:
-            with open(DATA_FILE, "w", encoding="utf-8") as f:
-                json.dump(app_state["notes"], f)
-        except Exception as e:
-            print(f"Errore salvataggio note: {e}")
+        with open(DATA_FILE, "w", encoding="utf-8") as f:
+            json.dump(app_state["notes"], f, ensure_ascii=False, indent=2)
 
     def load_notes():
         if os.path.exists(DATA_FILE):
-            try:
-                with open(DATA_FILE, "r", encoding="utf-8") as f:
-                    app_state["notes"] = json.load(f)
-            except Exception:
-                app_state["notes"] = []
+            with open(DATA_FILE, "r", encoding="utf-8") as f:
+                app_state["notes"] = json.load(f)
         else:
             app_state["notes"] = []
 
-    # --- UI LOGICA ---
+    # 5) Persistenza impostazioni
+    def save_settings():
+        with open(SETTINGS_FILE, "w", encoding="utf-8") as f:
+            json.dump({
+                "theme": settings["theme"],
+                "auto_delete_enabled": app_state["auto_delete_enabled"],
+                "max_reads": app_state["max_reads"]
+            }, f, ensure_ascii=False, indent=2)
+
+    # 6) Popola la listbox
     def update_note_list():
         if not dpg.does_item_exist("note_list"):
             return
-        key = generate_key_from_password(app_state["master_key"])
-        titles = []
-        for note in app_state["notes"]:
-            try:
-                titles.append(decrypt_note(note["title"], key))
-            except Exception:
-                titles.append("<errore>")
-        dpg.configure_item("note_list", items=titles)
+        if not app_state["master_key"]:
+            return
 
-    def find_note_by_title(title: str):
-        key = generate_key_from_password(app_state["master_key"])
+        items = []
         for note in app_state["notes"]:
+            # decifra il titolo con passphrase dedicata o master_key
+            pw = note.get("passphrase") or app_state["master_key"]
+            key = generate_key_from_password(pw)
             try:
-                if decrypt_note(note["title"], key) == title:
-                    return note
-            except Exception:
-                continue
-        return None
+                items.append(decrypt_note(note["title"], key))
+            except:
+                items.append("<errore>")
+        dpg.configure_item("note_list", items=items)
 
+    # 7) Selezione nota
     def on_note_selected(_, title):
         if not title:
             return
-        note = find_note_by_title(title)
-        if not note:
+
+        # trova la nota corrispondente
+        for note in app_state["notes"]:
+            pw = note.get("passphrase") or app_state["master_key"]
+            key = generate_key_from_password(pw)
+            try:
+                if decrypt_note(note["title"], key) == title:
+                    break
+            except:
+                continue
+        else:
             dpg.set_value("note_display", "Errore: nota non trovata.")
             return
 
-        # incremento letture e controllo auto-eliminazione
-        note["read_count"] = note.get("read_count", 0) + 1
-        if note["read_count"] > MAX_READS:
-            app_state["notes"].remove(note)
-            update_note_list()
-            dpg.set_value("note_display", f"Nota eliminata dopo {MAX_READS} letture.")
-            save_notes()
-            return
+        # auto‑delete: usa il max_reads SPECIFICO o, se mancante, quello GLOBALE
+        limit = note.get("max_reads", app_state["max_reads"])
+        if app_state["auto_delete_enabled"]:
+            note["read_count"] = note.get("read_count", 0) + 1
+            if note["read_count"] > limit:
+                app_state["notes"].remove(note)
+                save_notes()
+                update_note_list()
+                dpg.set_value("note_display",
+                              f"Nota eliminata dopo {limit} letture.")
+                return
 
-        # decrittazione del contenuto
+        # decifra e mostra
         try:
-            content = decrypt_note(
-                note["content_encrypted"],
-                generate_key_from_password(app_state["master_key"])
-            )
-        except Exception:
-            content = "<errore decrittazione>"
-        dpg.set_value("note_display", f"Titolo: {title}\n\n{content}")
+            body = decrypt_note(note["content_encrypted"], key)
+        except:
+            body = "<errore decrittazione>"
+        dpg.set_value("note_display", f"Titolo: {title}\n\n{body}")
         save_notes()
 
-    def on_note_created(title: str, content: str):
-        key = generate_key_from_password(app_state["master_key"])
+    # 8) Creazione nota
+    def on_note_created(title, content, passphrase, per_note_reads):
+        if not app_state["master_key"]:
+            show_error_dialog("Devi prima fare login con master key valida.")
+            return
+
+        # determina la chiave di cifratura
+        pw = passphrase or app_state["master_key"]
+        key = generate_key_from_password(pw)
+
         # verifica duplicati
         for note in app_state["notes"]:
             try:
                 if decrypt_note(note["title"], key) == title:
                     show_error_dialog("Titolo già esistente.")
                     return
-            except Exception:
-                pass
+            except:
+                continue
 
-        # cifro titolo e contenuto
-        enc_title   = encrypt_note(title, key)
-        enc_content = encrypt_note(content, key)
-
+        # cifra titolo e contenuto
+        enc_t = encrypt_note(title, key)
+        enc_c = encrypt_note(content, key)
         app_state["notes"].append({
-            "title":             enc_title,
-            "content_encrypted": enc_content,
-            "read_count":        0
+            "title": enc_t,
+            "content_encrypted": enc_c,
+            "read_count": 0,
+            "passphrase": passphrase,
+            "max_reads": per_note_reads or app_state["max_reads"]
         })
-
+        save_notes()
         if dpg.does_item_exist("NewNote"):
             dpg.delete_item("NewNote")
         update_note_list()
-        save_notes()
 
+    # 9) Eliminazione manuale
     def delete_note():
-        title = dpg.get_value("note_list")
+        title = dpg.get_value("note_list") or ""
         if not title:
-            show_error_dialog("Seleziona una nota.")
+            show_error_dialog("Seleziona prima una nota.")
             return
-        note = find_note_by_title(title)
-        if not note:
-            show_error_dialog("Nota non trovata.")
-            return
-        app_state["notes"].remove(note)
-        update_note_list()
-        dpg.set_value("note_display", "Nota eliminata.")
-        save_notes()
 
-    def on_settings_saved(theme: str):
+        for note in app_state["notes"]:
+            pw = note.get("passphrase") or app_state["master_key"]
+            key = generate_key_from_password(pw)
+            try:
+                if decrypt_note(note["title"], key) == title:
+                    app_state["notes"].remove(note)
+                    save_notes()
+                    update_note_list()
+                    dpg.set_value("note_display", "Nota eliminata.")
+                    return
+            except:
+                continue
+
+        show_error_dialog("Nota non trovata.")
+
+    # 10) Salvataggio impostazioni
+    def on_settings_saved(theme, auto_del, max_reads, _):
+        # tema
+        settings["theme"] = theme
         if theme == "Dark":
             apply_dark_theme()
         else:
             apply_light_theme()
-        if dpg.does_item_exist("Settings"):
-            dpg.delete_item("Settings")
+        # auto-delete e max_reads
+        app_state["auto_delete_enabled"] = auto_del
+        if max_reads >= 1:
+            app_state["max_reads"] = max_reads
+        save_settings()
 
-    def create_main_window(user: str):
+    # 11) Costruzione main window
+    def create_main_window(user):
+        load_notes()
         if dpg.does_item_exist("Main Window"):
             dpg.delete_item("Main Window")
 
-        with dpg.window(
-            tag="Main Window",
-            width=900,
-            height=700,
-            no_title_bar=False,
-            show=True
-        ):
+        with dpg.window(tag="Main Window", width=900, height=700, show=True):
             with dpg.menu_bar():
                 with dpg.menu(label="File"):
                     dpg.add_menu_item(label="New Note",
-                                      callback=lambda: show_new_note_dialog(on_note_created))
+                                      callback=lambda: show_new_note_dialog(on_note_created,
+                                                                            app_state["max_reads"]))
                     dpg.add_menu_item(label="Settings",
-                                      callback=lambda: show_settings_dialog(on_settings_saved))
+                                      callback=lambda: show_settings_dialog(
+                                          on_settings_saved,
+                                          settings["theme"],
+                                          app_state["auto_delete_enabled"],
+                                          app_state["max_reads"]
+                                      ))
                     dpg.add_menu_item(label="Exit",
                                       callback=lambda: (save_notes(), dpg.stop_dearpygui()))
 
@@ -169,48 +222,29 @@ def run_app():
             with dpg.group(horizontal=True):
                 with dpg.child_window(tag="Sidebar", width=250, height=-1):
                     dpg.add_text("Le tue Note:")
-                    dpg.add_listbox(
-                        tag="note_list",
-                        items=[],
-                        width=230,
-                        num_items=15,
-                        callback=on_note_selected
-                    )
+                    dpg.add_listbox(tag="note_list", items=[], width=230, num_items=15,
+                                    callback=on_note_selected)
                     dpg.add_button(label="Delete Note", callback=delete_note, width=230)
 
                 with dpg.child_window(tag="MainPanel", width=-1, height=-1):
                     dpg.add_text("Nota selezionata:")
-                    dpg.add_input_text(
-                        tag="note_display",
-                        multiline=True,
-                        readonly=True,
-                        width=-1,
-                        height=500
-                    )
+                    dpg.add_input_text(tag="note_display", multiline=True,
+                                       readonly=True, width=-1, height=500)
 
         dpg.set_primary_window("Main Window", True)
-        dpg.split_frame(delay=1)
-        dpg.focus_item("Main Window")
+        update_note_list()
 
-    def on_splash_done(user: str, mk: str):
-        app_state["username"]   = user
+    # 12) Callback splash/login
+    def on_splash_done(user, mk):
+        app_state["username"] = user
         app_state["master_key"] = mk
+        dpg.delete_item("Splash")
+        create_main_window(user)
 
-        load_notes()
-        if dpg.does_item_exist("Splash"):
-            dpg.delete_item("Splash")
-
-        create_main_window(user)  # crea la finestra e il widget note_list
-        update_note_list()        # quindi popola la listbox
-
-    # mostra la splash e parte tutto
-    dpg.set_frame_callback(1, lambda: show_splash(on_splash_done))
+    # 13) Avvio
+    show_splash(on_splash_done)
     dpg.show_viewport()
     dpg.start_dearpygui()
-    save_notes()
     dpg.destroy_context()
-
-
-
 
 
