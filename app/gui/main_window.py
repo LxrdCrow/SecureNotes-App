@@ -1,3 +1,5 @@
+# app/gui/main_window.py
+
 import dearpygui.dearpygui as dpg
 import json
 import os
@@ -42,7 +44,7 @@ def run_app():
     app_state = {
         "username": None,
         "master_key": None,   # solo per l’accesso all’app
-        "notes": [],          # ogni nota: {title, content_encrypted, read_count, passphrase, max_reads}
+        "notes": [],          # ogni nota: {title, content_encrypted, read_count, max_reads}
         "auto_delete_enabled": settings["auto_delete_enabled"],
         "max_reads": settings["max_reads"]
     }
@@ -52,12 +54,27 @@ def run_app():
         with open(DATA_FILE, "w", encoding="utf-8") as f:
             json.dump(app_state["notes"], f, ensure_ascii=False, indent=2)
 
+
     def load_notes():
-        if os.path.exists(DATA_FILE):
-            with open(DATA_FILE, "r", encoding="utf-8") as f:
-                app_state["notes"] = json.load(f)
-        else:
+        """
+        Carica le note da DATA_FILE. Se il file non esiste,
+        o è vuoto, o contiene JSON non valido, inizializza notes a [].
+        """
+        if not os.path.exists(DATA_FILE):
             app_state["notes"] = []
+            return
+
+        try:
+            with open(DATA_FILE, "r", encoding="utf-8") as f:
+                contents = f.read().strip()
+                if contents:
+                    app_state["notes"] = json.loads(contents)
+                else:
+                    app_state["notes"] = []
+        except (json.JSONDecodeError, IOError):
+            # se il file è corrotto o non leggibile, svuota comunque le note
+            app_state["notes"] = []
+
 
     # 5) Persistenza impostazioni
     def save_settings():
@@ -76,10 +93,8 @@ def run_app():
             return
 
         items = []
+        key = generate_key_from_password(app_state["master_key"])
         for note in app_state["notes"]:
-            # decifra il titolo con passphrase dedicata o master_key
-            pw = note.get("passphrase") or app_state["master_key"]
-            key = generate_key_from_password(pw)
             try:
                 items.append(decrypt_note(note["title"], key))
             except:
@@ -91,10 +106,8 @@ def run_app():
         if not title:
             return
 
-        # trova la nota corrispondente
+        key = generate_key_from_password(app_state["master_key"])
         for note in app_state["notes"]:
-            pw = note.get("passphrase") or app_state["master_key"]
-            key = generate_key_from_password(pw)
             try:
                 if decrypt_note(note["title"], key) == title:
                     break
@@ -112,8 +125,7 @@ def run_app():
                 app_state["notes"].remove(note)
                 save_notes()
                 update_note_list()
-                dpg.set_value("note_display",
-                              f"Nota eliminata dopo {limit} letture.")
+                dpg.set_value("note_display", f"Nota eliminata dopo {limit} letture.")
                 return
 
         # decifra e mostra
@@ -125,14 +137,13 @@ def run_app():
         save_notes()
 
     # 8) Creazione nota
-    def on_note_created(title, content, passphrase, per_note_reads):
+    #    ORA senza passphrase, solo titolo, contenuto e per_note_reads
+    def on_note_created(title, content, per_note_reads):
         if not app_state["master_key"]:
             show_error_dialog("Devi prima fare login con master key valida.")
             return
 
-        # determina la chiave di cifratura
-        pw = passphrase or app_state["master_key"]
-        key = generate_key_from_password(pw)
+        key = generate_key_from_password(app_state["master_key"])
 
         # verifica duplicati
         for note in app_state["notes"]:
@@ -150,7 +161,6 @@ def run_app():
             "title": enc_t,
             "content_encrypted": enc_c,
             "read_count": 0,
-            "passphrase": passphrase,
             "max_reads": per_note_reads or app_state["max_reads"]
         })
         save_notes()
@@ -165,9 +175,8 @@ def run_app():
             show_error_dialog("Seleziona prima una nota.")
             return
 
+        key = generate_key_from_password(app_state["master_key"])
         for note in app_state["notes"]:
-            pw = note.get("passphrase") or app_state["master_key"]
-            key = generate_key_from_password(pw)
             try:
                 if decrypt_note(note["title"], key) == title:
                     app_state["notes"].remove(note)
@@ -182,13 +191,11 @@ def run_app():
 
     # 10) Salvataggio impostazioni
     def on_settings_saved(theme, auto_del, max_reads, _):
-        # tema
         settings["theme"] = theme
         if theme == "Dark":
             apply_dark_theme()
         else:
             apply_light_theme()
-        # auto-delete e max_reads
         app_state["auto_delete_enabled"] = auto_del
         if max_reads >= 1:
             app_state["max_reads"] = max_reads
@@ -203,18 +210,27 @@ def run_app():
         with dpg.window(tag="Main Window", width=900, height=700, show=True):
             with dpg.menu_bar():
                 with dpg.menu(label="File"):
-                    dpg.add_menu_item(label="New Note",
-                                      callback=lambda: show_new_note_dialog(on_note_created,
-                                                                            app_state["max_reads"]))
-                    dpg.add_menu_item(label="Settings",
-                                      callback=lambda: show_settings_dialog(
-                                          on_settings_saved,
-                                          settings["theme"],
-                                          app_state["auto_delete_enabled"],
-                                          app_state["max_reads"]
-                                      ))
-                    dpg.add_menu_item(label="Exit",
-                                      callback=lambda: (save_notes(), dpg.stop_dearpygui()))
+                    # Qui passo la nuova firma: on_note_created + default max_reads
+                    dpg.add_menu_item(
+                        label="New Note",
+                        callback=lambda: show_new_note_dialog(
+                            on_note_created,
+                            app_state["max_reads"]
+                        )
+                    )
+                    dpg.add_menu_item(
+                        label="Settings",
+                        callback=lambda: show_settings_dialog(
+                            on_settings_saved,
+                            settings["theme"],
+                            app_state["auto_delete_enabled"],
+                            app_state["max_reads"]
+                        )
+                    )
+                    dpg.add_menu_item(
+                        label="Exit",
+                        callback=lambda: (save_notes(), dpg.stop_dearpygui())
+                    )
 
             dpg.add_text(f"Benvenuto, {user}!", color=[200, 200, 100])
             dpg.add_separator()
@@ -222,14 +238,27 @@ def run_app():
             with dpg.group(horizontal=True):
                 with dpg.child_window(tag="Sidebar", width=250, height=-1):
                     dpg.add_text("Le tue Note:")
-                    dpg.add_listbox(tag="note_list", items=[], width=230, num_items=15,
-                                    callback=on_note_selected)
-                    dpg.add_button(label="Delete Note", callback=delete_note, width=230)
+                    dpg.add_listbox(
+                        tag="note_list",
+                        items=[],
+                        width=230, num_items=15,
+                        callback=on_note_selected
+                    )
+                    dpg.add_button(
+                        label="Delete Note",
+                        callback=delete_note,
+                        width=230
+                    )
 
                 with dpg.child_window(tag="MainPanel", width=-1, height=-1):
                     dpg.add_text("Nota selezionata:")
-                    dpg.add_input_text(tag="note_display", multiline=True,
-                                       readonly=True, width=-1, height=500)
+                    dpg.add_input_text(
+                        tag="note_display",
+                        multiline=True,
+                        readonly=True,
+                        width=-1,
+                        height=500
+                    )
 
         dpg.set_primary_window("Main Window", True)
         update_note_list()
@@ -246,5 +275,6 @@ def run_app():
     dpg.show_viewport()
     dpg.start_dearpygui()
     dpg.destroy_context()
+
 
 
