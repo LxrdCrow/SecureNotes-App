@@ -3,7 +3,6 @@
 import dearpygui.dearpygui as dpg
 
 def center_window(tag: str, width: int, height: int, offset_x: int = 200, offset_y: int = 100):
-    """Centra la finestra indicata dal tag, poi applica un offset in px."""
     if not dpg.does_item_exist(tag):
         return
     vw = dpg.get_viewport_client_width()
@@ -21,7 +20,7 @@ def show_splash(on_submit):
         username = dpg.get_value("splash_username") or ""
         master_key = dpg.get_value("splash_master_key") or ""
         if not master_key.strip():
-            show_error_dialog("⚠️ You must enter a Master Key to continue.")
+            show_error_dialog("You must enter a Master Key to continue.")
             return
         on_submit(username, master_key)
 
@@ -45,13 +44,11 @@ def show_splash(on_submit):
             dpg.add_button(label="Submit", width=100, callback=_submit)
             dpg.add_button(label="Exit",   width=100, callback=lambda: dpg.stop_dearpygui())
 
-    # Handler tastiera per Enter/Escape
     if not dpg.does_item_exist("splash_enter_handler"):
         with dpg.handler_registry(tag="splash_enter_handler"):
             dpg.add_key_press_handler(dpg.mvKey_Return, callback=lambda: _submit())
             dpg.add_key_press_handler(dpg.mvKey_Escape, callback=lambda: dpg.stop_dearpygui())
 
-    # Pulisci e centra
     dpg.set_value("splash_username", "")
     dpg.set_value("splash_master_key", "")
     center_window(tag, w, h, offset_x=200, offset_y=50)
@@ -101,13 +98,11 @@ def show_new_note_dialog(on_note_created, default_max_reads: int):
 
         dpg.focus_item("newnote_title")
 
-    # Handler tastiera globale per Invio/Escape
     if not dpg.does_item_exist("newnote_enter_handler"):
         with dpg.handler_registry(tag="newnote_enter_handler"):
             dpg.add_key_press_handler(dpg.mvKey_Return, callback=lambda: _submit())
             dpg.add_key_press_handler(dpg.mvKey_Escape, callback=lambda: dpg.delete_item(tag))
 
-    # Reset valori
     dpg.set_value("newnote_title", "")
     dpg.set_value("newnote_content", "")
     dpg.set_value("newnote_max_reads", default_max_reads)
@@ -161,7 +156,7 @@ def show_settings_dialog(on_save, current_theme: str, auto_delete: bool, max_rea
     return tag
 
 
-def show_error_dialog(message: str = "Si è verificato un errore."):
+def show_error_dialog(message: str = "An error has occurred.."):
     tag, w, h = "ErrorDialog", 400, 150
     if dpg.does_item_exist(tag):
         dpg.delete_item(tag)
@@ -169,7 +164,7 @@ def show_error_dialog(message: str = "Si è verificato un errore."):
     with dpg.window(label="Errore", tag=tag, modal=True,
                     no_title_bar=True, no_resize=True,
                     width=w, height=h):
-        dpg.add_text("⚠️ Errore:", color=[255,0,0])
+        dpg.add_text("Error:", color=[255,0,0])
         dpg.add_text(message, wrap=350)
         dpg.add_spacer(height=20)
         dpg.add_button(label="OK", width=100, callback=lambda: dpg.delete_item(tag))
