@@ -74,7 +74,6 @@ SecureNotes-App/
 │
 ├── config.py
 ├── main.py
-├── .env
 ├── secure_notes.ico
 ├── README.md
 ```
