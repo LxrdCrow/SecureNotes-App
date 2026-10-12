@@ -1,97 +1,112 @@
-# 🔐 SecureNotes
+# SecureNotes
 
-A lightweight, secure, and offline-friendly desktop application for managing encrypted personal notes. Powered by **Python**, **Dear PyGui**, and a touch of cryptographic magic.
+SecureNotes is an educational offline desktop application for managing encrypted personal notes. Built with Python and Dear PyGui, it demonstrates local data encryption, passphrase-based key derivation, and configurable read limits for sensitive information.
 
-> ✨ Developed with a focus on privacy, usability, and self-destruction of sensitive notes after a set number of reads.
+## Features
 
----
+- **Local Note Encryption** – Note titles and contents are encrypted using AES-CBC before being saved to local JSON storage.
+- **Passphrase-Derived Key** – The active GUI derives a 256-bit AES key from the user-provided master key using SHA-256.
+- **Configurable Read Limits** – Notes can be configured with individual read limits and removed from the application's storage when the configured limit is exceeded.
+- **Offline Operation** – The active desktop workflow does not require network connectivity.
+- **Local Data Storage** – Encrypted note contents are stored in `notes_data.json`, while application preferences are stored in `settings.json`.
+- **Customizable Interface** – Supports dark and light themes.
 
-## 📦 Features
+## Technology Stack
 
-- 🔑 **Master Key Encryption** – Notes are locally encrypted using a key derived from your password.
-- 📋 **Per-Note Read Limits** – Configure how many times each note can be read before it auto-deletes.
-- 🎨 **Dark & Light Themes** – Switch between light and dark mode from the settings.
-- 🧠 **No Internet Required** – Everything runs 100% locally.
-- 🧼 **Secure Data Storage** – Notes and settings are stored in JSON files, encrypted with AES.
-
----
-
-## 🚀 How to Run
-
-### 🔧 Option 1: Run the `.exe` (recommended for end users)
-
-1. Download the latest `SecureNotes.exe` from the `dist/` folder or release page.
-2. Double click to launch.
-3. If Windows Defender blocks it:
-   - Click **"More Info"**
-   - Then click **"Run Anyway"**
-
-✅ No installation needed. No admin rights required.
-
----
-
-### 💻 Option 2: Run from source (for developers)
-
-#### Requirements
 - Python 3.9+
-- `pip install -r requirements.txt`
+- Dear PyGui
+- PyCryptodome
+- AES-CBC
+- SHA-256
+- JSON
 
-```bash
-python main.py
-````
+## How It Works
 
----
+### Encryption
 
-## 🔒 How it Works
+The active GUI implementation derives an AES key by computing the SHA-256 digest of the user-provided master key. Notes are encrypted using AES-CBC with an initialization vector, and the IV and ciphertext are encoded in Base64 for storage.
 
-* **Encryption**: Notes are encrypted with AES using a key derived from the Master Key via PBKDF2.
-* **Storage**: Notes are saved in `notes_data.json`, and app settings in `settings.json`. Both are plaintext but contain encrypted data.
-* **Auto-deletion**: Once a note exceeds its max read count, will be deleted permanently from the app.
-* **Everything happens locally** – no servers, no network, no data leaks.
+### Storage
 
----
+Note titles and contents are encrypted before being written to `notes_data.json`. Operational metadata, including read counters and configured read limits, remains in plaintext. The `settings.json` file stores application preferences and read-limit settings in plaintext.
 
-## 📁 Project Structure
+### Read Limits and Deletion
 
-```
+Users can configure the maximum number of reads allowed for each note. When a note's read counter exceeds its configured limit, the application removes the note from its JSON-based storage.
+
+This mechanism implements application-level deletion; it does not guarantee secure erasure of all copies or remnants from the underlying filesystem.
+
+### Local Processing
+
+The active GUI processes and stores notes locally without requiring a remote server or network connection. This reduces network exposure but does not, by itself, guarantee protection against local compromise or unauthorized access to the device.
+
+## Project Structure
+
+```text
 SecureNotes-App/
-│
 ├── app/
+│   ├── gui/
+│   │   ├── dialogs.py
+│   │   ├── main_window.py
+│   │   ├── styles.py
+│   │   └── crypto_utils.py
 │   ├── auth.py
-│   ├── notes.py
-│   ├── utils.py
 │   ├── logic.py
-│   └── gui/
-│       ├── dialogs.py
-│       ├── main_window.py
-│       ├── styles.py
-│       └── crypto_utils.py
-│
+│   ├── notes.py
+│   └── utils.py
 ├── database/
-│   ├── database.py
-│   ├── init_db.py
-│   └── schema_sqlite.sql
-│
 ├── config.py
 ├── main.py
-├── secure_notes.ico
-├── README.md
+├── requirements.txt
+└── README.md
 ```
 
----
+**Implementation note:** `main.py` launches the GUI implemented in `app/gui/`. The repository also contains a separate SQLite-based implementation with authentication and Fernet encryption modules. These modules are not currently integrated into the GUI's execution path.
 
-## 🧪 Developer Notes
+## Getting Started
 
-### Build executable with PyInstaller:
+### Requirements
+
+- Python 3.9 or later
+- pip
+
+### Run from Source
+
+Clone the repository and navigate to its directory. Then install the dependencies and start the application:
+
+```bash
+python -m pip install -r requirements.txt
+python -m pip install pycryptodome
+python main.py
+```
+
+## Build a Windows Executable
+
+Install PyInstaller:
+
+```bash
+python -m pip install pyinstaller
+```
+
+Build the executable:
 
 ```bash
 pyinstaller --onefile --windowed --icon=secure_notes.ico --name=SecureNotes main.py
 ```
 
-### Notes:
+The generated executable will be placed in the `dist/` directory.
 
-* If the app is blocked on Windows SmartScreen, instruct users to click **"More info" > Run anyway**.
-* To avoid triggering antivirus false positives, you can sign the executable (optional, but requires a certificate).
+## Security Scope and Limitations
+
+SecureNotes is an educational project intended to demonstrate local encryption and desktop application development. The active GUI implementation currently has the following limitations:
+
+- The passphrase-derived key uses direct SHA-256 hashing rather than a password-based key derivation function with a salt and configurable computational cost.
+- AES-CBC does not provide built-in ciphertext authentication or integrity verification.
+- Note metadata and application settings are stored in plaintext.
+- The master key entered in the GUI is used as encryption input; it is not verified through a separate authentication mechanism.
+- Read-limit deletion is an application-level mechanism, not guaranteed secure file erasure.
+
+The application should not be treated as production-ready protection for highly sensitive information without further security improvements and testing.
 
 
 
