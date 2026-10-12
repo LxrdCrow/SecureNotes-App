@@ -76,7 +76,6 @@ Clone the repository and navigate to its directory. Then install the dependencie
 
 ```bash
 python -m pip install -r requirements.txt
-python -m pip install pycryptodome
 python main.py
 ```
 
